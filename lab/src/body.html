@@ -1,0 +1,641 @@
+<style>
+/* 문제 선택·객관식·이미지 파일 */
+.picker { display: flex; align-items: center; gap: 6px; }
+.picker select { border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 5px 8px; font-size: 13px; max-width: 260px; }
+.mcq-head { font-weight: 600; display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.mcq-head .range { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; color: var(--muted); }
+.md code { white-space: nowrap; }
+.qlist { display: flex; flex-direction: column; }
+.qitem { padding: 18px 22px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.qitem:first-child { border-top: 0; }
+.qitem-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.qitem-head b { font-size: 15px; font-weight: 600; margin-right: 4px; }
+.qitem .hint { font-size: 12px; color: var(--muted); }
+.opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.opts label { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.opts label:hover { background: var(--surface-2); }
+.opts input { position: absolute; opacity: 0; pointer-events: none; }
+.opts .num { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--muted); display: inline-grid; place-items: center; font-size: 12px; font-family: var(--font-mono); flex: none; }
+.opts input:checked + .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.opts input:focus-visible + .num { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opts label.correct { background: var(--ok-weak); }
+.opts label.correct .num { border-color: var(--ok); color: var(--ok); }
+.opts label.correct input:checked + .num { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.opts label.wrong input:checked + .num { background: var(--warn); border-color: var(--warn); color: var(--surface); }
+.flag[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-weak); }
+.explain { background: var(--surface-2); border-radius: 6px; padding: 8px 12px; font-size: 13px; }
+.img-wrap { padding: 12px; display: flex; justify-content: center; background: var(--surface-2); min-height: 200px; }
+.img-wrap img { max-width: none; box-shadow: 0 1px 4px rgb(0 0 0 / .18); background: #fff; }
+.file-list li.folder { font-size: 12.5px; color: var(--muted); padding: 6px 8px 2px; }
+.file-list li.in-folder button { padding-left: 22px; }
+.attach .pick label.folder { font-weight: 600; }
+.attach .pick label.in-folder { padding-left: 18px; }
+input.short { width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono); }
+.ctx { border-left: 4px solid var(--line); padding: 4px 0 4px 14px; color: var(--fg); max-width: 90ch; }
+.zoom { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12px; }
+</style>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand"><b>AX 해커톤 연습실</b><span id="probTitle"></span></div>
+    <div class="picker"><label class="sr" for="probSel">문제 선택</label><select id="probSel"></select></div>
+    <div class="stat" title="남은 시간">남은 시간 <span class="mono" id="timer">--:--</span></div>
+    <div class="stat" id="aiStat" title="AI 사용 가능 횟수">AI <span class="mono" id="aiLeftTop">10/10</span></div>
+    <div id="resetWrap"><button class="btn ghost sm" id="resetBtn" type="button">다시 풀기</button></div>
+    <button class="btn primary" id="submitBtn" type="button">제출하고 채점</button>
+  </div>
+</header>
+
+<main class="layout">
+  <div class="col-main">
+    <article class="panel problem" id="problem"></article>
+
+    <section class="panel" id="filesPanel" aria-labelledby="filesTitle">
+      <div class="panel-head"><h2 id="filesTitle">파일 목록</h2><span class="chip" id="fileCount"></span><span class="spacer"></span><span class="label" id="filesHint">행·페이지 번호를 근거로 인용</span></div>
+      <div class="files-body">
+        <ul class="file-list" id="fileList"></ul>
+        <div class="viewer">
+          <div class="viewer-head"><b id="vName"></b><span class="chip mono" id="vTok"></span><span class="spacer" style="flex:1"></span><span class="zoom" id="zoomBox" hidden><button class="btn sm" id="zoomOut" type="button" aria-label="축소">−</button><span id="zoomVal">100%</span><button class="btn sm" id="zoomIn" type="button" aria-label="확대">+</button></span><button class="btn sm" id="vAttach" type="button">AI에 첨부</button></div>
+          <div class="viewer-body" id="vBody"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="essayPanel" aria-labelledby="ansTitle">
+      <div class="panel-head">
+        <h2 id="ansTitle">답안</h2><span class="chip mono" id="ansCount">0 자</span>
+        <span class="chip warn" id="ansPii" hidden></span>
+        <span class="spacer"></span>
+        <button class="btn sm" id="togglePreview" type="button" aria-pressed="true">미리보기 끄기</button>
+      </div>
+      <div class="editor-body split" id="editorBody">
+        <label class="sr" for="answer">답안 입력</label>
+        <textarea id="answer" placeholder="→ 이곳에 답안을 입력하세요 (마크다운 지원: #, **굵게**, 표, 목록)"></textarea>
+        <div class="preview md" id="preview"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="mcqPanel" hidden aria-label="객관식 문항">
+      <div class="qlist" id="qlist"></div>
+    </section>
+
+    <section class="panel" id="resultPanel" hidden aria-labelledby="resTitle">
+      <div class="panel-head"><h2 id="resTitle">채점 결과</h2><span class="spacer"></span><button class="btn sm" id="regradeBtn" type="button">다시 채점</button></div>
+      <div class="result" id="result"></div>
+    </section>
+  </div>
+
+  <aside class="panel col-ai" aria-labelledby="aiTitle">
+    <div class="panel-head"><h2 id="aiTitle">AI 어시스턴트</h2><span class="spacer"></span><span class="chip accent mono" id="aiLeft">남은 10회</span></div>
+    <div class="ai-note">
+      <span id="aiRule">질문 1회 1,000자 이내 · 매 질문은 새 대화</span>
+      <label><input type="checkbox" id="memory"> 이전 대화 기억(실전과 다름)</label>
+      <label title="끄면 Sonnet 5.5, 켜면 빠른 경량 모델"><input type="checkbox" id="lite"> 경량 모델</label>
+      <span id="imgNote"></span>
+    </div>
+    <div class="ai-off" id="aiOff" hidden></div>
+    <div class="ai-log" id="aiLog" aria-live="polite"></div>
+    <div class="composer">
+      <details class="attach" id="attach">
+        <summary><span>📎 첨부 파일</span><span id="attachChips"></span></summary>
+        <div class="pick" id="attachPick"></div>
+      </details>
+      <label class="sr" for="prompt">AI에게 보낼 질문</label>
+      <textarea id="prompt" maxlength="1000" placeholder="첨부 파일과 함께 보낼 지시를 입력하세요."></textarea>
+      <div class="pii-warn" id="piiWarn" hidden></div>
+      <div class="composer-row">
+        <span class="count mono" id="promptCount">0 / 1000</span>
+        <button class="btn" id="stopBtn" type="button" hidden>중지</button>
+        <button class="btn primary" id="sendBtn" type="button">질문 보내기</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script id="problem-data" type="application/json">__PROBLEMS__</script>
+<script>
+(() => {
+  const ALL = JSON.parse(document.getElementById("problem-data").textContent);
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const md = (s) => {
+    try { return DOMPurify.sanitize(marked.parse(String(s || ""), { gfm: true, breaks: true })); }
+    catch { return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>"); }
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+
+  let P, KEY, LIMIT, state;
+  const load = (k, d) => store.get(KEY + k, d);
+  const save = (k, v) => store.set(KEY + k, v);
+  const tokens = (f) => f.tokens || Math.max(1, Math.round(f.content.length / 1.7));
+
+  /* ---------- 이미지 파일(표를 그림으로 렌더) ---------- */
+  const imgCache = {};
+  function drawTable(spec) {
+    const split = spec.split || 1, cols = spec.columns, rows = spec.rows;
+    const per = Math.ceil(rows.length / split), rowH = 26, pad = 36, font = '"IBM Plex Sans KR","Malgun Gothic",sans-serif';
+    const c0 = document.createElement("canvas").getContext("2d");
+    c0.font = `13px ${font}`;
+    const colW = cols.map((h, i) => Math.ceil(Math.max(c0.measureText(h).width, ...rows.map((r) => c0.measureText(r[i]).width)) + 22));
+    const tW = colW.reduce((a, b) => a + b, 0), gap = 10;
+    const W = Math.max(pad * 2 + tW * split + gap * (split - 1), 560), H = 120 + rowH * (per + 1) + pad;
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#1f3b63"; g.font = `600 22px ${font}`; g.textAlign = "center"; g.fillText(spec.title, W / 2, 52);
+    g.fillStyle = "#555"; g.font = `12px ${font}`; g.fillText(spec.subtitle || "", W / 2, 80);
+    const x0 = (W - (tW * split + gap * (split - 1))) / 2;
+    for (let s = 0; s < split; s++) {
+      const part = rows.slice(s * per, (s + 1) * per), bx = x0 + s * (tW + gap), by = 100;
+      g.fillStyle = "#2f5d9e"; g.fillRect(bx, by, tW, rowH);
+      g.font = `600 12px ${font}`; g.fillStyle = "#fff"; g.textAlign = "center";
+      let x = bx; cols.forEach((h, i) => { g.fillText(h, x + colW[i] / 2, by + 17); x += colW[i]; });
+      g.font = `13px ${font}`; g.textAlign = "left";
+      part.forEach((r, ri) => {
+        const y = by + rowH * (ri + 1);
+        g.fillStyle = ri % 2 ? "#f3f6fa" : "#fff"; g.fillRect(bx, y, tW, rowH);
+        g.fillStyle = "#222"; let xx = bx; r.forEach((v, i) => { g.fillText(v, xx + 10, y + 18); xx += colW[i]; });
+      });
+      g.strokeStyle = "#9fb3cc"; g.lineWidth = 1;
+      for (let i = 0; i <= part.length + 1; i++) { g.beginPath(); g.moveTo(bx, by + rowH * i + .5); g.lineTo(bx + tW, by + rowH * i + .5); g.stroke(); }
+      let xl = bx; [0, ...colW].forEach((w) => { xl += w; g.beginPath(); g.moveTo(xl + .5, by); g.lineTo(xl + .5, by + rowH * (part.length + 1)); g.stroke(); });
+    }
+    return cv;
+  }
+  async function fileImage(f) {
+    if (imgCache[f.name]) return imgCache[f.name];
+    try { await document.fonts.ready; } catch {}
+    const cv = drawTable(f.image);
+    const blob = await new Promise((r) => cv.toBlob(r, "image/png"));
+    return (imgCache[f.name] = { url: cv.toDataURL("image/png"), blob, w: cv.width });
+  }
+
+  /* ---------- PII ---------- */
+  const PII_RE = [/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, /01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g];
+  function findPII(text) {
+    if (P.pii == null) return [];
+    const hits = new Set();
+    for (const p of P.pii) if (p && p.length > 1 && text.includes(p)) hits.add(p);
+    if (P.pii.length) for (const re of PII_RE) for (const m of text.matchAll(re)) hits.add(m[0]);
+    return [...hits];
+  }
+
+  /* ---------- 문제 표시 ---------- */
+  function renderProblem() {
+    $("probTitle").textContent = P.title;
+    document.title = "AX 해커톤 연습실";
+    const meta = `<div class="problem-meta"><span class="chip accent">${esc(P.badge)}</span><span class="chip">연습용</span><span class="chip mono">제한 ${P.timeLimitMin}분</span><span class="chip mono">AI ${LIMIT.count}회 · ${LIMIT.chars}자</span></div>`;
+    if (P.type === "mcq") {
+      $("problem").innerHTML = `${meta}
+        <div class="mcq-head"><span class="range">1~${P.questions.length}</span>${esc(P.lead || "다음을 읽고 문제를 풀어주세요.")}</div>
+        <div class="md">${md(P.passage)}</div>
+        <div class="prob-block"><h3>주의사항</h3><div class="md"><ul>${P.notices.map((n) => `<li>${md(n).replace(/^<p>|<\/p>\s*$/g, "")}</li>`).join("")}</ul></div></div>`;
+    } else {
+      $("problem").innerHTML = `${meta}
+        <h1 style="font-size:20px;margin-bottom:14px">${esc(P.title)}</h1>
+        <details class="guide" open><summary>평가 가이드라인</summary><div class="md">${md(P.guideline)}</div></details>
+        <div class="prob-block"><h3>과제 상황</h3><div class="md">${md(P.situation)}</div></div>
+        <div class="prob-block"><h3>보고서 필수 포함 섹션</h3><ol class="sections">${P.sections.map((s) => `<li><b>${esc(s.title)}</b><span>${esc(s.desc)}</span></li>`).join("")}</ol></div>
+        <div class="prob-block"><h3>유의사항 (보안 및 개인정보 처리)</h3><div class="md"><ul>${P.notices.map((n) => `<li>${md(n).replace(/^<p>|<\/p>\s*$/g, "")}</li>`).join("")}</ul></div></div>`;
+    }
+    $("filesPanel").hidden = !P.files.length;
+    $("attach").hidden = !P.files.length;
+    $("essayPanel").hidden = P.type === "mcq";
+    $("mcqPanel").hidden = P.type !== "mcq";
+    $("filesHint").textContent = P.type === "mcq" ? "이미지 파일은 확대해서 확인" : "행·페이지 번호를 근거로 인용";
+    $("aiRule").textContent = `질문 1회 ${LIMIT.chars.toLocaleString()}자 이내 · 매 질문은 새 대화`;
+    $("prompt").maxLength = LIMIT.chars;
+    $("prompt").placeholder = P.pii && P.pii.length ? "첨부 파일과 함께 보낼 지시를 입력하세요. 이름·사번·이메일 등 개인정보는 입력하지 마세요." : "첨부 파일과 함께 보낼 지시를 입력하세요.";
+  }
+
+  /* ---------- 파일 ---------- */
+  function parseCSV(s) {
+    const rows = []; let row = [], f = "", q = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (q) { if (c === '"') { if (s[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+      else if (c === '"') q = true;
+      else if (c === ",") { row.push(f); f = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && s[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; }
+      else f += c;
+    }
+    if (f || row.length) { row.push(f); rows.push(row); }
+    return rows.filter((r) => r.some((x) => x !== ""));
+  }
+  function grouped(render, folderRow) {
+    let prev = null, out = "";
+    P.files.forEach((f, i) => {
+      if ((f.folder || null) !== prev) { prev = f.folder || null; if (prev) out += folderRow(prev); }
+      out += render(f, i);
+    });
+    return out;
+  }
+  function renderFileList() {
+    $("fileCount").textContent = P.files.length + "개";
+    $("fileList").innerHTML = grouped(
+      (f, i) => `<li${f.folder ? ' class="in-folder"' : ""}><button type="button" data-i="${i}" aria-current="${i === state.current}" title="${esc(f.name)}"><span class="fname">${esc(f.name)}${state.attached.has(f.name) ? '<span class="att">● 첨부</span>' : ""}</span><span class="ftok">${tokens(f).toLocaleString()}</span></button></li>`,
+      (d) => `<li class="folder">📁 ${esc(d)}</li>`);
+  }
+  async function renderViewer() {
+    const f = P.files[state.current];
+    if (!f) return;
+    $("vName").textContent = f.name;
+    $("vTok").textContent = tokens(f).toLocaleString() + " 토큰";
+    $("vAttach").textContent = state.attached.has(f.name) ? "첨부 해제" : "AI에 첨부";
+    $("vAttach").classList.toggle("primary", !state.attached.has(f.name));
+    $("zoomBox").hidden = f.kind !== "image";
+    const body = $("vBody");
+    body.scrollTop = 0;
+    if (f.kind === "image") {
+      body.innerHTML = '<div class="img-wrap"><span class="ai-empty">이미지 준비 중…</span></div>';
+      const im = await fileImage(f);
+      if (P.files[state.current] !== f) return;
+      const z = state.zoom[f.name] || 0.8;
+      $("zoomVal").textContent = Math.round(z * 100) + "%";
+      body.innerHTML = `<div class="img-wrap"><img src="${im.url}" alt="${esc(f.name)} 내용(표 이미지)" width="${Math.round(im.w * z)}"></div>`;
+    } else if (f.kind === "csv") {
+      const [h, ...data] = parseCSV(f.content);
+      body.innerHTML = `<table class="csv"><thead><tr><th class="rn">행</th>${h.map((x) => `<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${data.map((r, i) => `<tr><td class="rn">${i + 1}</td>${r.map((x) => `<td>${esc(x)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    } else if (f.kind === "pdf") {
+      const parts = f.content.split(/(?=\[p\.\d+\])/).map((s) => s.trim()).filter(Boolean);
+      body.innerHTML = `<div class="doc">${parts.map((p) => { const m = p.match(/^\[p\.(\d+)\]\s*/); return `<div class="page"><div class="pno">${m ? "p." + m[1] : ""}</div><pre>${esc(m ? p.slice(m[0].length) : p)}</pre></div>`; }).join("")}</div>`;
+    } else {
+      body.innerHTML = `<div class="log">${f.content.split("\n").map((l, i) => `<div class="ln"><span>${i + 1}</span><span>${esc(l) || " "}</span></div>`).join("")}</div>`;
+    }
+  }
+  function zoom(d) {
+    const f = P.files[state.current];
+    state.zoom[f.name] = Math.min(2, Math.max(0.4, (state.zoom[f.name] || 0.8) + d));
+    renderViewer();
+  }
+  $("zoomIn").onclick = () => zoom(0.1);
+  $("zoomOut").onclick = () => zoom(-0.1);
+  $("fileList").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]"); if (!b) return;
+    state.current = +b.dataset.i; renderFileList(); renderViewer();
+  });
+  function toggleAttach(name) {
+    state.attached.has(name) ? state.attached.delete(name) : state.attached.add(name);
+    save("attached", [...state.attached]); renderFileList(); renderViewer(); renderAttach();
+  }
+  $("vAttach").onclick = () => toggleAttach(P.files[state.current].name);
+
+  /* ---------- 서술형 답안 ---------- */
+  const ans = $("answer");
+  let saveT;
+  function onAnswer() {
+    $("ansCount").textContent = ans.value.length.toLocaleString() + " 자 (공백 포함)";
+    const hits = findPII(ans.value);
+    $("ansPii").hidden = !hits.length;
+    $("ansPii").textContent = "개인정보 " + hits.length + "건 노출";
+    if ($("editorBody").classList.contains("split")) $("preview").innerHTML = md(ans.value);
+  }
+  ans.addEventListener("input", () => { onAnswer(); clearTimeout(saveT); saveT = setTimeout(() => save("answer", ans.value), 400); });
+  $("togglePreview").onclick = (e) => {
+    const on = $("editorBody").classList.toggle("split");
+    $("preview").hidden = !on;
+    e.currentTarget.textContent = on ? "미리보기 끄기" : "미리보기 켜기";
+    e.currentTarget.setAttribute("aria-pressed", on);
+    onAnswer();
+  };
+
+  /* ---------- 객관식 ---------- */
+  const norm = (s) => String(s ?? "").replace(/[\s,$]/g, "").toUpperCase();
+  const isRight = (q, v) => (q.kind === "short" ? (q.accept || [q.answer]).map(norm).includes(norm(v)) && norm(v) !== "" : v === q.answer);
+  function renderMCQ() {
+    const m = state.mcq, done = m.submitted;
+    $("qlist").innerHTML = P.questions.map((q, i) => {
+      const pick = m.choices[i], ok = isRight(q, pick);
+      if (q.kind === "short") return `<div class="qitem" id="q-${i}">
+        <div class="qitem-head"><b>${i + 1}. 주관식</b>
+          <button class="btn sm flag" type="button" data-flag="${i}" aria-pressed="${!!m.flags[i]}">다시 풀 문제 ⚑</button>
+          <button class="btn sm" type="button" data-top="1">지문으로 이동 ↑</button>
+          ${done ? `<span class="chip ${ok ? "ok" : "warn"}">${ok ? "○ 정답" : pick ? "✕ 오답" : "미응답"}</span>` : ""}
+        </div>
+        <div class="md">${md(q.q)}</div>
+        <label class="hint" for="s-${i}">이곳에 답안을 입력하세요. ↴</label>
+        <input class="short" id="s-${i}" data-short="${i}" value="${esc(pick || "")}" ${done ? "disabled" : ""} autocomplete="off">
+        ${done ? `<div class="explain"><b>해설</b> · 정답 ${esc(q.answer)}. ${esc(q.explain)}</div>` : ""}
+      </div>`;
+      return `<div class="qitem" id="q-${i}">
+        <div class="qitem-head"><b>${i + 1}. 객관식</b>
+          <button class="btn sm flag" type="button" data-flag="${i}" aria-pressed="${!!m.flags[i]}">다시 풀 문제 ⚑</button>
+          <button class="btn sm" type="button" data-top="1">지문으로 이동 ↑</button>
+          ${done ? `<span class="chip ${ok ? "ok" : "warn"}">${ok ? "○ 정답" : pick ? "✕ 오답" : "미응답"}</span>` : ""}
+        </div>
+        ${q.context ? `<div>다음 지문을 읽고 물음에 답하세요.</div><blockquote class="ctx">${esc(q.context)}</blockquote>` : ""}
+        <div>${esc(q.q)}</div>
+        <div class="hint">답안을 선택하세요 ↴</div>
+        <ul class="opts" role="radiogroup" aria-label="${i + 1}번 보기">${q.options.map((o, j) => {
+          const n = j + 1, cls = done ? (n === q.answer ? "correct" : pick === n ? "wrong" : "") : "";
+          return `<li><label class="${cls}"><input type="radio" name="q${i}" value="${n}" ${pick === n ? "checked" : ""} ${done ? "disabled" : ""}><span class="num">${n}</span>${esc(o)}</label></li>`;
+        }).join("")}</ul>
+        ${done ? `<div class="explain"><b>해설</b> · 정답 ${q.answer}번. ${esc(q.explain)}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+  $("qlist").addEventListener("change", (e) => {
+    const m = e.target.name?.match(/^q(\d+)$/); if (!m) return;
+    state.mcq.choices[+m[1]] = +e.target.value; save("mcq", state.mcq);
+  });
+  $("qlist").addEventListener("input", (e) => {
+    const i = e.target.dataset?.short; if (i == null) return;
+    state.mcq.choices[+i] = e.target.value; save("mcq", state.mcq);
+  });
+  $("qlist").addEventListener("click", (e) => {
+    const f = e.target.closest("[data-flag]");
+    if (f) { const i = +f.dataset.flag; state.mcq.flags[i] = !state.mcq.flags[i]; save("mcq", state.mcq); f.setAttribute("aria-pressed", state.mcq.flags[i]); }
+    if (e.target.closest("[data-top]")) $("problem").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  function gradeMCQ() {
+    state.mcq.submitted = true; save("mcq", state.mcq); renderMCQ();
+    const right = P.questions.filter((q, i) => isRight(q, state.mcq.choices[i])).length;
+    $("resultPanel").hidden = false;
+    $("regradeBtn").textContent = "AI 사용 피드백";
+    $("result").innerHTML = `<div class="scores"><div class="score"><div class="label">정답 수</div><div class="v">${right}<small>/${P.questions.length}</small></div></div><div class="score"><div class="label">AI 사용</div><div class="v">${used()}<small>/${LIMIT.count}회</small></div></div></div>
+      <p class="ai-empty" id="mcqFb">문항별 해설은 각 문제 아래에 표시됩니다. 'AI 사용 피드백'을 누르면 이번 풀이의 질문 기록을 평가받을 수 있습니다.</p>`;
+  }
+  async function mcqFeedback() {
+    if (!sample) return;
+    const box = $("mcqFb"); if (!box) return;
+    if (!state.log.length) { box.textContent = "AI 질문 기록이 없습니다."; return; }
+    box.textContent = "평가 중…";
+    const log = state.log.filter((t) => !t.error).map((t, i) => ({ no: i + 1, files: t.files, prompt: t.prompt, answer: (t.answer || "").slice(0, 600) }));
+    try {
+      const { text } = await sample(`너는 AI 활용 역량 코치다. 응시자가 아래 객관식 문제를 풀며 AI에게 한 질문 기록을 평가하라. 기준: 자료 선별(필요 파일만 첨부), 지시의 정확성(규칙·조건 명시, 출력 형식), AI 결과 검증(원자료 대조·재확인 요청), 횟수 효율. 질문마다 한 줄 평가와 더 나은 질문 예시를 주고, 마지막에 총평 3줄. 마크다운, 한국어.\n[문제]\n${P.passage}\n주의사항: ${P.notices.join(" ")}\n문항: ${P.questions.map((q, i) => `${i + 1}. ${q.q}`).join(" / ")}\n[정답] ${P.questions.map((q) => q.answer).join(", ")}\n[응시자 답] ${P.questions.map((q, i) => state.mcq.choices[i] || "-").join(", ")}\n[질문 기록]\n${JSON.stringify(log)}`, { cache: false });
+      box.className = "md"; box.innerHTML = md(text);
+    } catch (e) { box.textContent = "피드백을 받지 못했습니다 (" + e.code + ")."; }
+  }
+
+  /* ---------- 타이머 ---------- */
+  function tick() {
+    if (!P) return;
+    const left = P.timeLimitMin * 60000 - (Date.now() - state.startedAt);
+    const s = Math.max(0, Math.floor(left / 1000));
+    $("timer").textContent = left <= 0 ? "시간 종료" : String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    $("timer").parentElement.classList.toggle("low", left < Math.min(10, P.timeLimitMin / 4) * 60000);
+  }
+  setInterval(tick, 1000);
+
+  /* ---------- AI 어시스턴트 ---------- */
+  let sample = null, imagesOK = false, ctl = null, busy = false;
+  const used = () => state.log.filter((t) => !t.error).length;
+  function renderLeft() {
+    const left = Math.max(0, LIMIT.count - used());
+    $("aiLeft").textContent = "남은 " + left + "회";
+    $("aiLeftTop").textContent = left + "/" + LIMIT.count;
+    $("aiStat").classList.toggle("low", left <= 2);
+    $("sendBtn").disabled = busy || !sample || left <= 0;
+    $("submitBtn").disabled = !sample && P.type !== "mcq";
+  }
+  function renderAttach() {
+    const names = [...state.attached];
+    $("attachChips").innerHTML = !names.length ? '<span class="chip">없음 — 눌러서 선택</span>'
+      : names.length > 3 ? names.slice(0, 2).map((n) => `<span class="chip">${esc(n)}</span>`).join(" ") + ` <span class="chip accent">외 ${names.length - 2}개</span>`
+      : names.map((n) => `<span class="chip">${esc(n)}</span>`).join(" ");
+    $("attachPick").innerHTML = grouped(
+      (f) => `<label${f.folder ? ' class="in-folder"' : ""}><input type="checkbox" data-n="${esc(f.name)}" ${state.attached.has(f.name) ? "checked" : ""}> ${esc(f.name)}<span class="ftok">${tokens(f).toLocaleString()}</span></label>`,
+      (d) => { const fs = P.files.filter((f) => f.folder === d); return `<label class="folder"><input type="checkbox" data-folder="${esc(d)}" ${fs.every((f) => state.attached.has(f.name)) ? "checked" : ""}> 📁 ${esc(d)} (전체 ${fs.length}개)</label>`; });
+    const hasImg = P.files.some((f) => f.kind === "image");
+    $("imgNote").textContent = !hasImg ? "" : imagesOK ? "이미지 파일은 그림으로 전송" : "이미지 전송 불가 → 표 내용을 텍스트로 전송";
+  }
+  $("attachPick").addEventListener("change", (e) => {
+    const d = e.target.dataset;
+    if (d.n) toggleAttach(d.n);
+    if (d.folder) {
+      P.files.filter((f) => f.folder === d.folder).forEach((f) => (e.target.checked ? state.attached.add(f.name) : state.attached.delete(f.name)));
+      save("attached", [...state.attached]); renderFileList(); renderViewer(); renderAttach();
+    }
+    $("attach").open = true;
+  });
+
+  function renderLog() {
+    const box = $("aiLog");
+    if (!state.log.length) {
+      box.innerHTML = `<div class="ai-empty">아직 질문이 없습니다. 이렇게 시작해 보세요.<ul><li>목적에 맞는 파일만 골라 📎 첨부</li><li>역할·작업·출력 형식·근거 위치를 지시</li><li>규칙(예: 마지막 주문만 유효)을 질문에 명시</li><li>AI 답은 원자료와 대조해 검증</li></ul></div>`;
+      return;
+    }
+    box.innerHTML = state.log.map((t, i) => `
+      <div class="turn">
+        <div class="q"><div class="q-meta"><b class="mono">Q${i + 1}</b><span class="mono">${t.prompt.length}자</span>${t.files.length ? `<span>📎 ${t.files.map(esc).join(", ")}</span>` : "<span>첨부 없음</span>"}${t.pii.length ? `<span class="chip warn">개인정보 입력 ${t.pii.length}건</span>` : ""}${t.memory ? '<span class="chip">기억 켬</span>' : ""}</div><pre>${esc(t.prompt)}</pre></div>
+        <div class="a ${t.error ? "err" : ""}"><div class="a-meta"><span>AI 응답${t.model ? " · " + esc(t.model) : ""}</span>${t.truncated ? '<span class="chip warn">잘림</span>' : ""}<span style="flex:1"></span>${t.answer ? `<button class="btn sm" type="button" data-copy="${i}">복사</button>` : ""}</div><div class="md" id="ans-${i}">${t.error ? esc(t.error) : md(t.answer || "생각 중…")}</div></div>
+      </div>`).join("");
+    box.scrollTop = box.scrollHeight;
+  }
+  $("aiLog").addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-copy]"); if (!b) return;
+    const text = state.log[+b.dataset.copy].answer;
+    try { await navigator.clipboard.writeText(text); b.textContent = "복사됨"; }
+    catch { const r = document.createRange(); r.selectNodeContents($("ans-" + b.dataset.copy)); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "선택됨 · Ctrl+C"; }
+    setTimeout(() => (b.textContent = "복사"), 1500);
+  });
+
+  const prompt = $("prompt");
+  function onPrompt() {
+    const n = prompt.value.length;
+    $("promptCount").textContent = n + " / " + LIMIT.chars;
+    $("promptCount").classList.toggle("over", n > LIMIT.chars);
+    $("piiWarn").hidden = true;
+  }
+  prompt.addEventListener("input", () => { onPrompt(); save("draft", prompt.value); });
+
+  async function buildInput(text, files) {
+    const parts = ["너는 사용자를 돕는 AI 어시스턴트다. 사용자가 첨부한 파일과 질문만 보고 한국어로 답하라. 첨부되지 않은 파일의 내용은 알 수 없으니 추측하지 말라. 마크다운으로 답하라."];
+    const images = [];
+    if (files.length) {
+      parts.push("[첨부 파일]");
+      for (const n of files) {
+        const f = P.files.find((x) => x.name === n);
+        if (f.kind === "image" && imagesOK) { images.push((await fileImage(f)).blob); parts.push(`=== ${f.name} (이미지 ${images.length}번째로 첨부) ===`); }
+        else if (f.kind === "image") parts.push(`=== ${f.name} (원본은 이미지, 표 내용을 텍스트로 옮김) ===\n${f.content}`);
+        else parts.push(`=== ${f.name} (${f.kind === "csv" ? "CSV, 첫 줄은 헤더이며 헤더 다음 줄이 1행" : f.kind === "pdf" ? "PDF 문서, [p.N]은 페이지" : "텍스트, 줄 번호는 1부터"}) ===\n${f.content}`);
+      }
+    } else parts.push("[첨부 파일 없음]");
+    parts.push("[질문]\n" + text);
+    const cur = parts.join("\n\n");
+    if (!$("memory").checked) return { input: cur, images };
+    const turns = [];
+    for (const t of state.log.slice(-4)) if (!t.error && t.answer) turns.push({ role: "user", content: t.prompt }, { role: "assistant", content: t.answer });
+    turns.push({ role: "user", content: cur });
+    return { input: turns, images };
+  }
+
+  async function send(force) {
+    const text = prompt.value.trim();
+    if (!text || busy || !sample || text.length > LIMIT.chars || used() >= LIMIT.count) return;
+    const pii = findPII(text);
+    if (pii.length && !force) {
+      $("piiWarn").hidden = false;
+      $("piiWarn").innerHTML = `<b>개인정보로 보이는 값이 있습니다: ${pii.map(esc).join(", ")}</b><span>실전에서는 보안 통제 감점 요소입니다. [작업자1] 같은 가명으로 바꿔 보내세요.</span><div class="row"><button class="btn sm" type="button" id="piiFix">수정하기</button><button class="btn sm" type="button" id="piiForce">그대로 보내기(기록됨)</button></div>`;
+      $("piiFix").onclick = () => { $("piiWarn").hidden = true; prompt.focus(); };
+      $("piiForce").onclick = () => send(true);
+      return;
+    }
+    $("piiWarn").hidden = true;
+    const files = [...state.attached], log = state.log, key = KEY;
+    const turn = { prompt: text, files, pii, memory: $("memory").checked, answer: "", at: Date.now() };
+    log.push(turn);
+    const idx = log.length - 1;
+    busy = true; renderLeft(); renderLog();
+    $("stopBtn").hidden = false;
+    prompt.value = ""; save("draft", ""); onPrompt();
+    ctl = new AbortController();
+    try {
+      const { input, images } = await buildInput(text, files);
+      const res = await sample(input, {
+        signal: ctl.signal, cache: false, ...(images.length ? { images } : {}),
+        ...($("lite").checked ? { modelTier: "quick" } : { model: "claude-sonnet-5-5", modelTier: "default" }),
+        onText: ({ text: t }) => { turn.answer = t; const el = key === KEY && $("ans-" + idx); if (el) el.innerHTML = md(t); },
+      });
+      turn.answer = res.text; turn.truncated = res.truncated;
+      turn.model = res.modelApplied === "claude-sonnet-5-5" ? "Sonnet 5.5" : { quick: "경량", default: "기본", complex: "고성능" }[res.modelTierApplied] || "";
+    } catch (e) {
+      if (e.text) turn.answer = e.text;
+      else {
+        turn.error = e.code === "cancelled" ? "중지됨 (횟수 차감 안 됨)" : e.code === "not_granted" ? "AI 사용 권한이 거부되었습니다." : e.code === "rate_limited" ? "요청이 많습니다. 잠시 후 다시 보내세요 (횟수 차감 안 됨)." : "응답을 받지 못했습니다 (" + e.code + "). 다시 보내세요 — 횟수는 차감되지 않습니다.";
+        if (e.code !== "cancelled" && key === KEY) prompt.value = text;
+      }
+      if (e.code === "not_granted" || e.code === "sampling_disabled") disableAI("AI 사용이 허용되지 않아 질문할 수 없습니다.");
+    } finally {
+      busy = false; $("stopBtn").hidden = true;
+      store.set(key + "log", log);
+      if (key === KEY) renderLog();
+      renderLeft();
+    }
+  }
+  $("sendBtn").onclick = () => send(false);
+  $("stopBtn").onclick = () => ctl?.abort();
+  prompt.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(false); });
+  function disableAI(msg) { $("aiOff").hidden = false; $("aiOff").textContent = msg; $("sendBtn").disabled = true; }
+
+  /* ---------- 서술형 채점 ---------- */
+  function gradeInput() {
+    const ansPII = findPII(ans.value);
+    const log = state.log.filter((t) => !t.error).map((t, i) => ({ no: i + 1, chars: t.prompt.length, attachedFiles: t.files, piiInPrompt: t.pii, prompt: t.prompt, aiAnswerExcerpt: (t.answer || "").slice(0, 700) }));
+    return `너는 기업 AI 역량평가 채점위원이다. 아래 문제·정답키·루브릭으로 응시자 답안(결과)과 프롬프트 기록(과정)을 엄격하게 채점하라.
+채점 원칙:
+- 결과: 정답키의 근본원인·핵심 수치·함정 판별과 일치하는지, 근거 위치(파일명+행/페이지/줄) 인용이 실제로 맞는지, 필수 섹션을 모두 갖췄는지. 근거 없는 단정, 상관을 인과로 쓴 서술, 시점 오류는 감점.
+- 과정: 프롬프트마다 자료 선별(첨부 파일이 목적에 맞는지), 지시의 정교함(역할·작업·형식·인용 요구), AI 결과 비판적 검증(재계산·교차검증 요청), 보안 통제(프롬프트에 개인정보 입력 여부, 답안의 개인정보 노출). 프롬프트에 개인정보가 들어간 경우 반드시 감점. 사용 횟수 ${LIMIT.count}회 중 ${log.length}회 사용.
+- 루브릭 항목별 배점 그대로 점수를 매기고, 각 항목에 구체적 근거(답안 문장·프롬프트 번호)를 들어 코멘트.
+- 답안이 비어 있거나 매우 짧으면 결과 점수는 낮게.
+
+반드시 아래 JSON 하나만 출력:
+{"result":{"score":number,"max":60,"items":[{"item":string,"max":number,"score":number,"comment":string}]},"process":{"score":number,"max":40,"items":[{"item":string,"max":number,"score":number,"comment":string}]},"summary":string,"strengths":[string],"improvements":[string],"promptReviews":[{"no":number,"comment":string,"better":string}]}
+promptReviews.better는 그 프롬프트를 개선한 예시(${LIMIT.chars}자 이내).
+
+[문제]
+${P.title}
+${P.situation}
+필수 섹션: ${P.sections.map((s, i) => i + 1 + ". " + s.title).join(" / ")}
+
+[정답키]
+${JSON.stringify(P.answerKey)}
+
+[루브릭]
+${JSON.stringify(P.rubric)}
+
+[답안 내 개인정보 탐지 결과(페이지 자동 탐지)]
+${ansPII.length ? ansPII.join(", ") : "없음"}
+
+[프롬프트 기록]
+${JSON.stringify(log)}
+
+[응시자 답안]
+${ans.value.slice(0, 30000) || "(빈 답안)"}`;
+  }
+  function renderGrade(g) {
+    $("resultPanel").hidden = false;
+    $("regradeBtn").textContent = "다시 채점";
+    const r = $("result");
+    if (!g) { r.innerHTML = '<p class="ai-empty">채점 중… 답안과 프롬프트 기록을 함께 평가하고 있습니다. 1~2분 걸릴 수 있습니다.</p>'; return; }
+    if (g.error) { r.innerHTML = `<p style="color:var(--warn)">${esc(g.error)}</p>`; return; }
+    const rows = (sec) => (sec?.items || []).map((x) => `<tr><td>${esc(x.item)}</td><td class="num">${x.score}/${x.max}</td><td>${esc(x.comment)}</td></tr>`).join("");
+    const K = P.answerKey;
+    r.innerHTML = `
+      <div class="scores">
+        <div class="score"><div class="label">총점</div><div class="v">${(g.result?.score || 0) + (g.process?.score || 0)}<small>/100</small></div></div>
+        <div class="score"><div class="label">결과 평가</div><div class="v">${g.result?.score ?? "-"}<small>/60</small></div></div>
+        <div class="score"><div class="label">과정 평가</div><div class="v">${g.process?.score ?? "-"}<small>/40</small></div></div>
+      </div>
+      <div class="md" style="max-width:none">${md(g.summary || "")}</div>
+      <div><h3 style="font-size:15px;margin-bottom:6px">결과 평가</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>항목</th><th>점수</th><th>코멘트</th></tr></thead><tbody>${rows(g.result)}</tbody></table></div></div>
+      <div><h3 style="font-size:15px;margin-bottom:6px">과정 평가</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>항목</th><th>점수</th><th>코멘트</th></tr></thead><tbody>${rows(g.process)}</tbody></table></div></div>
+      <div class="md" style="max-width:none"><h3>잘한 점</h3><ul>${(g.strengths || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ul><h3>개선할 점</h3><ul>${(g.improvements || []).map((s) => `<li>${esc(s)}</li>`).join("")}</ul></div>
+      ${(g.promptReviews || []).length ? `<div><h3 style="font-size:15px;margin-bottom:6px">프롬프트별 피드백</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Q</th><th>피드백</th><th>개선 예시</th></tr></thead><tbody>${g.promptReviews.map((p) => `<tr><td class="num">Q${p.no}</td><td>${esc(p.comment)}</td><td style="white-space:pre-wrap">${esc(p.better)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
+      <details class="guide"><summary>정답 근거 보기</summary>
+        <div class="md" style="max-width:none">
+          <h3>근본원인</h3><p>${esc(K.rootCause)}</p>
+          <h3>핵심 수치</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>항목</th><th>값</th><th>근거</th><th>계산</th></tr></thead><tbody>${K.keyNumbers.map((k) => `<tr><td>${esc(k.label)}</td><td class="num">${esc(k.value)}</td><td>${esc(k.source)}</td><td>${esc(k.calc)}</td></tr>`).join("")}</tbody></table></div>
+          <h3>함정과 사실</h3><div class="tbl-wrap"><table class="tbl"><thead><tr><th>유형</th><th>함정</th><th>사실</th><th>근거</th></tr></thead><tbody>${K.traps.map((t) => `<tr><td>${esc(t.type)}</td><td>${esc(t.trap)}</td><td>${esc(t.truth)}</td><td>${esc(t.evidence)}</td></tr>`).join("")}</tbody></table></div>
+          <h3>반드시 인용할 근거</h3><ul>${K.mustCite.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
+        </div>
+      </details>`;
+  }
+  async function gradeEssay() {
+    if (!sample) return;
+    const key = KEY, btns = [$("submitBtn"), $("regradeBtn")];
+    btns.forEach((b) => (b.disabled = true));
+    renderGrade(null);
+    $("resultPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+    let g;
+    try { g = await sample.json(gradeInput(), { modelTier: "complex", cache: false }); }
+    catch (e) { g = { error: e.code === "invalid_json" ? "채점 결과를 읽지 못했습니다. 다시 채점을 눌러 주세요." : e.code === "not_granted" ? "AI 사용 권한이 없어 채점할 수 없습니다." : "채점 요청이 실패했습니다 (" + e.code + "). 다시 채점을 눌러 주세요." }; }
+    store.set(key + "grade", g);
+    if (key === KEY) { state.grade = g; renderGrade(g); }
+    btns.forEach((b) => (b.disabled = false));
+  }
+  $("submitBtn").onclick = () => (P.type === "mcq" ? gradeMCQ() : gradeEssay());
+  $("regradeBtn").onclick = () => (P.type === "mcq" ? mcqFeedback() : gradeEssay());
+
+  /* ---------- 다시 풀기 ---------- */
+  $("resetWrap").addEventListener("click", (e) => {
+    const id = e.target.id;
+    if (id === "resetBtn") $("resetWrap").innerHTML = '<span class="confirm">이 문제의 답안·AI 기록·타이머를 지울까요? <button class="btn sm" id="rsYes" type="button">초기화</button><button class="btn sm ghost" id="rsNo" type="button">취소</button></span>';
+    if (id === "rsNo") $("resetWrap").innerHTML = '<button class="btn ghost sm" id="resetBtn" type="button">다시 풀기</button>';
+    if (id === "rsYes") {
+      ["log", "attached", "grade", "answer", "draft", "mcq"].forEach((k) => store.del(KEY + k));
+      store.set(KEY + "startedAt", Date.now());
+      $("resetWrap").innerHTML = '<button class="btn ghost sm" id="resetBtn" type="button">다시 풀기</button>';
+      open(P.id);
+    }
+  });
+
+  /* ---------- 문제 전환 ---------- */
+  const groups = [...new Set(ALL.map((p) => p.group || "실전 과제"))];
+  $("probSel").innerHTML = groups.map((g) => `<optgroup label="${esc(g)}">${ALL.filter((p) => (p.group || "실전 과제") === g).map((p) => `<option value="${esc(p.id)}">[${esc(p.badge)}] ${esc(p.title)}</option>`).join("")}</optgroup>`).join("");
+  $("probSel").onchange = (e) => open(e.target.value);
+  function open(id) {
+    if (busy) ctl?.abort();
+    P = ALL.find((p) => p.id === id) || ALL[0];
+    KEY = "axlab:" + P.id + ":";
+    LIMIT = P.aiLimit || { count: 10, chars: 1000 };
+    store.set("axlab:last", P.id);
+    $("probSel").value = P.id;
+    let startedAt = load("startedAt", null);
+    if (!startedAt) { startedAt = Date.now(); save("startedAt", startedAt); }
+    state = { log: load("log", []), attached: new Set(load("attached", [])), current: 0, zoom: {}, startedAt, grade: load("grade", null), mcq: load("mcq", { choices: {}, flags: {}, submitted: false }) };
+    renderProblem(); renderFileList(); renderViewer(); renderAttach(); renderLog(); renderLeft(); tick();
+    prompt.value = load("draft", ""); onPrompt();
+    $("resultPanel").hidden = true;
+    if (P.type === "mcq") { renderMCQ(); if (state.mcq.submitted) gradeMCQ(); }
+    else { ans.value = load("answer", ""); onAnswer(); if (state.grade) renderGrade(state.grade); }
+  }
+  open(store.get("axlab:last", ALL[0].id));
+
+  (window.claude ? window.claude.use("sample") : Promise.resolve(null)).then(async (s) => {
+    sample = s;
+    if (!s) {
+      disableAI("");
+      $("aiOff").innerHTML = 'AI 질문·서술형 채점은 claude.ai 버전에서만 동작합니다. <a href="https://claude.ai/artifact/GHXmjKkiBTeCn27xj9poNN" target="_blank" rel="noopener">claude.ai에서 열기</a> (객관식·주관식 채점은 여기서도 됩니다)';
+    }
+    else { try { imagesOK = !!(await s.limits()).images; } catch { imagesOK = false; } }
+    renderLeft(); renderAttach();
+  });
+})();
+</script>
