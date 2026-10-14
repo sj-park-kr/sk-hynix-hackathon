@@ -14,12 +14,13 @@ def load(path):
 problems = [
     load(P / "snack/problem.json"),
     load(P / "fai/problem.json"),
+    load(P / "globalcart/problem.json"),
     {**load(P / "hbm/problem.json"), "type": "essay"},
 ]
 for s in load(P / "literacy/sets.json"):
     problems.append({
         "id": "lit-" + s["key"].lower(), "group": "AI 리터러시 문제집", "type": "mcq",
-        "title": f"세트 {s['key']} · {s['title']}", "badge": "객관식 10문항", "timeLimitMin": 15,
+        "title": f"세트 {s['key']} · {s['title']}", "badge": f"객관식 {len(s['questions'])}문항", "timeLimitMin": 15,
         "aiLimit": {"count": 10, "chars": 1000}, "pii": [], "files": [], "notices": [],
         "lead": "다음 지문을 읽고 물음에 답하세요.",
         "passage": f"AI 활용·보안·규제 지식을 묻는 시나리오형 객관식입니다. 문항마다 업무 상황을 읽고 가장 적절한 답을 고르세요. (주제: {s['title']})",
