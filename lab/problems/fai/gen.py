@@ -143,6 +143,8 @@ FAI 요금제 및 크레딧 정책 안내서 (2026년 개정판)
 """
 files = [{"name": "01_FAI_요금제_및_크레딧_정책_안내서.pdf", "kind": "pdf", "tokens": 2310, "content": policy.strip()}]
 WRITER, REVIEWER = "안지오", "편지솔"
+# 실제 시험 화면의 토큰 표시값(01~11), 12~15는 비슷한 수준으로 지정
+REPORT_TOKENS = [2022, 1594, 1524, 1967, 2191, 2092, 2277, 2874, 2091, 1997, 2101, 1886, 1742, 1655, 2318]
 for k, r in enumerate(reports, 1):
     p = PL[r["plan"]]
     rows = r["rows"]; half = (len(rows) + 1) // 2
@@ -175,7 +177,7 @@ for k, r in enumerate(reports, 1):
 합계 | | | | | {r['actual']:,}
 
 ※ 본 보고서는 FAI 관리자 콘솔의 사용 로그를 기준으로 작성되었으며, 사용 내역이 없는 라이선스는 표에 나타나지 않습니다."""
-    files.append({"name": f"{k:02d}_{r['team']}_FAI_이용현황_2026년5월.pdf", "folder": "02_팀별_FAI_이용현황", "kind": "pdf", "content": body})
+    files.append({"name": f"{k:02d}_{r['team']}_FAI_이용현황_2026년5월.pdf", "folder": "02_팀별_FAI_이용현황", "kind": "pdf", "tokens": REPORT_TOKENS[k - 1], "content": body})
 by_team = {}
 for m in roster: by_team.setdefault(m["code"], []).append(m)
 summary = "\n".join(f"{c} | {t[1]} | {len(by_team[c])}명" for c, t in zip([x[0] for x in TEAMS], TEAMS))
@@ -183,7 +185,7 @@ lines = [f"{m['team']} | {m['sabun']} | {m['name']} | {m['status']} | {m['eff']}
 pages = ["[p.1]\nㅇㅇ솔루션 전사 임직원 명부 (기준일: 2026-05-31) · 인사팀 · 대외비\n총 인원 181명 (재직·휴직·군복무·퇴사 포함, 2026년 1월 이후 퇴사자 포함)\n\n팀별 인원 분포\n팀 코드 | 팀명 | 인원\n" + summary]
 for s in range(0, len(lines), 50):
     pages.append(f"[p.{len(pages) + 1}]\n임직원 명단 ({s + 1}~{min(s + 50, len(lines))})\n소속 팀 | 사번 | 성명 | 재직 상태 | 발효일\n" + "\n".join(lines[s:s + 50]))
-files.append({"name": "03_전사_임직원_명부_2026년5월.pdf", "kind": "pdf", "content": "\n\n".join(pages)})
+files.append({"name": "03_전사_임직원_명부_2026년5월.pdf", "kind": "pdf", "tokens": 4380, "content": "\n\n".join(pages)})
 
 P = {
  "id": "fai-license-01", "type": "mcq", "title": "FAI 라이선스 운영 분석", "badge": "객관식 1 · 주관식 3", "timeLimitMin": 30,
