@@ -15,6 +15,7 @@ problems = [
     load(P / "snack/problem.json"),
     load(P / "fai/problem.json"),
     load(P / "globalcart/problem.json"),
+    load(P / "expense/problem.json"),
     {**load(P / "hbm/problem.json"), "type": "essay"},
 ]
 for s in load(P / "literacy/sets.json"):
