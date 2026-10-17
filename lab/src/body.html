@@ -523,6 +523,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
     } finally {
       busy = false; $("stopBtn").hidden = true;
       store.set(key + "log", log);
+      if (P.clearAttach && key === KEY && !turn.error) { state.attached.clear(); save("attached", []); renderFileList(); renderAttach(); }
       if (key === KEY) renderLog();
       renderLeft();
     }
@@ -640,7 +641,7 @@ ${ans.value.slice(0, 30000) || "(빈 답안)"}`;
     P = ALL.find((p) => p.id === id) || ALL[0];
     KEY = "axlab:" + P.id + ":";
     LIMIT = P.aiLimit || { count: 10, chars: 1000 };
-    if (P.liteDefault != null) $("lite").checked = P.liteDefault;
+    $("lite").checked = !!P.liteDefault; $("memory").checked = !!P.memoryDefault;
     aiNotice();
     store.set("axlab:last", P.id);
     $("probSel").value = P.id;

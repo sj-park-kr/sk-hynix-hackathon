@@ -42,11 +42,14 @@ if READY: problems.append({
 parts = [load(M / f"p{i}/part.json") for i in range(1, 5)] if READY else []
 if READY: problems.append({
     "id": "mock1-practice", "group": GROUP, "type": "mcq", "title": "1회 · 2교시 실기", "badge": f"4문제 · {sum(len(x['questions']) for x in parts)}문항", "timeLimitMin": 90,
-    "aiLimit": {"count": 40, "chars": 1000, "cooldownSec": 30}, "liteDefault": True, "pii": [],
+    "aiLimit": {"count": 40, "chars": 1000, "cooldownSec": 30}, "liteDefault": True, "memoryDefault": True, "clearAttach": True, "pii": [],
     "lead": "자료를 보고 문제 1~4의 소문항에 답하세요.",
     "passage": "실제 시험처럼 **경량(구형) 모델**이 기본이고, 질문은 **30초 간격**으로만 보낼 수 있으며 매 질문은 새 대화입니다. 첨부 한도를 넘기면 보낼 수 없고, 한도 가까이 채우면 모델이 틀리기 쉽습니다. 작게 나눠 묻고, 중간 결과는 메모장에 표로 저장해 다음 질문에 붙여 넣으세요.\n\n"
         + "\n\n".join(f"### 문제 {i}. {x['title']}\n{x['summary']}" for i, x in enumerate(parts, 1)),
-    "notices": ["AI 질문은 문제 1~4 합계 40회(문제당 약 10회 가정), 1회 1,000자 이내입니다.", "모든 회사·인물·수치는 가상입니다.", "시간 배분: 문제당 약 20분, 막히면 다음 문제로 넘어가세요."],
+    "notices": ["AI 질문은 문제 1~4 합계 40회(문제당 약 10회 가정), 1회 1,000자 이내입니다. 횟수를 남기지 마세요.",
+        "실전처럼 **질문을 보내면 첨부가 풀립니다.** 질문마다 필요한 파일을 다시 첨부하세요.",
+        "실전 AI는 문항의 보기를 읽지 못합니다. 보기가 필요하면 핵심만 직접 타이핑하세요.",
+        "'이전 대화 기억'이 켜져 있습니다(실전처럼 앞의 틀린 답이 남아 영향을 줌). 틀린 답 뒤에는 '이전 답 무시, 첨부 원문만 근거로'를 붙이세요.", "모든 회사·인물·수치는 가상입니다.", "시간 배분: 문제당 약 20분, 막히면 다음 문제로 넘어가세요."],
     "files": [f for x in parts for f in x["files"]],
     "questions": [q for x in parts for q in x["questions"]],
 })
