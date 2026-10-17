@@ -31,7 +31,7 @@
 .attach .pick label.folder { font-weight: 600; }
 .attach .pick label.in-folder { padding-left: 18px; }
 input.short { width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 6px; padding: 8px 10px; font-family: var(--font-mono); }
-.ctx { border-left: 4px solid var(--line); padding: 4px 0 4px 14px; color: var(--fg); max-width: 90ch; }
+.ctx { border-left: 4px solid var(--line); padding: 4px 0 4px 14px; color: var(--fg); max-width: 90ch; white-space: pre-line; }
 .zoom { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12px; }
 </style>
 
@@ -191,7 +191,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
   function renderProblem() {
     $("probTitle").textContent = P.title;
     document.title = "AX 해커톤 연습실";
-    const meta = `<div class="problem-meta"><span class="chip accent">${esc(P.badge)}</span><span class="chip">연습용</span><span class="chip mono">제한 ${P.timeLimitMin}분</span><span class="chip mono">AI ${LIMIT.count}회 · ${LIMIT.chars}자</span></div>`;
+    const meta = `<div class="problem-meta"><span class="chip accent">${esc(P.badge)}</span><span class="chip">연습용</span><span class="chip mono">제한 ${P.timeLimitMin}분</span><span class="chip mono">${LIMIT.count ? `AI ${LIMIT.count}회 · ${LIMIT.chars}자` : "AI 사용 불가"}</span></div>`;
     if (P.type === "mcq") {
       $("problem").innerHTML = `${meta}
         <div class="mcq-head"><span class="range">1~${P.questions.length}</span>${esc(P.lead || "다음을 읽고 문제를 풀어주세요.")}</div>
@@ -210,7 +210,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
     $("essayPanel").hidden = P.type === "mcq";
     $("mcqPanel").hidden = P.type !== "mcq";
     $("filesHint").textContent = P.type === "mcq" ? "이미지 파일은 확대해서 확인" : "행·페이지 번호를 근거로 인용";
-    $("aiRule").textContent = `질문 1회 ${LIMIT.chars.toLocaleString()}자 이내 · 매 질문은 새 대화`;
+    $("aiRule").textContent = `질문 1회 ${LIMIT.chars.toLocaleString()}자 이내 · 매 질문은 새 대화${LIMIT.cooldownSec ? ` · 질문 간격 ${LIMIT.cooldownSec}초` : ""}`;
     $("prompt").maxLength = LIMIT.chars;
     $("prompt").placeholder = P.pii && P.pii.length ? "첨부 파일과 함께 보낼 지시를 입력하세요. 이름·사번·이메일 등 개인정보는 입력하지 마세요." : "첨부 파일과 함께 보낼 지시를 입력하세요.";
   }
@@ -475,6 +475,12 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
   async function send(force) {
     const text = prompt.value.trim();
     if (!text || busy || !sample || text.length > LIMIT.chars || used() >= LIMIT.count) return;
+    const wait = (state.log.filter((t) => !t.error).at(-1)?.at || 0) + (LIMIT.cooldownSec || 0) * 1000 - Date.now();
+    if (wait > 0) {
+      $("piiWarn").hidden = false;
+      $("piiWarn").innerHTML = `<b>${Math.ceil(wait / 1000)}초 뒤에 다시 질문할 수 있습니다.</b><span>질문 간격 ${LIMIT.cooldownSec}초 (실전 조건)</span>`;
+      return;
+    }
     const tok = attachedTokens(), lim = attachLimit();
     if (lim && tok > lim) {
       $("piiWarn").hidden = false;
@@ -525,6 +531,13 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
   $("stopBtn").onclick = () => ctl?.abort();
   prompt.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(false); });
   function disableAI(msg) { $("aiOff").hidden = false; $("aiOff").textContent = msg; $("sendBtn").disabled = true; }
+  let sampleChecked = false;
+  function aiNotice() {
+    const off = $("aiOff");
+    if (!LIMIT.count) { off.hidden = false; off.textContent = "이 시험은 AI 없이 풉니다."; }
+    else if (!sample && sampleChecked) { off.hidden = false; off.innerHTML = 'AI 질문·서술형 채점은 claude.ai 버전에서만 동작합니다. <a href="https://claude.ai/artifact/GHXmjKkiBTeCn27xj9poNN" target="_blank" rel="noopener">claude.ai에서 열기</a> (객관식·주관식 채점은 여기서도 됩니다)'; }
+    else off.hidden = true;
+  }
 
   /* ---------- 서술형 채점 ---------- */
   function gradeInput() {
@@ -627,6 +640,8 @@ ${ans.value.slice(0, 30000) || "(빈 답안)"}`;
     P = ALL.find((p) => p.id === id) || ALL[0];
     KEY = "axlab:" + P.id + ":";
     LIMIT = P.aiLimit || { count: 10, chars: 1000 };
+    if (P.liteDefault != null) $("lite").checked = P.liteDefault;
+    aiNotice();
     store.set("axlab:last", P.id);
     $("probSel").value = P.id;
     let startedAt = load("startedAt", null);
@@ -641,11 +656,8 @@ ${ans.value.slice(0, 30000) || "(빈 답안)"}`;
   open(store.get("axlab:last", ALL[0].id));
 
   (window.claude ? window.claude.use("sample") : Promise.resolve(null)).then(async (s) => {
-    sample = s;
-    if (!s) {
-      disableAI("");
-      $("aiOff").innerHTML = 'AI 질문·서술형 채점은 claude.ai 버전에서만 동작합니다. <a href="https://claude.ai/artifact/GHXmjKkiBTeCn27xj9poNN" target="_blank" rel="noopener">claude.ai에서 열기</a> (객관식·주관식 채점은 여기서도 됩니다)';
-    }
+    sample = s; sampleChecked = true;
+    if (!s) aiNotice();
     else { try { imagesOK = !!(await s.limits()).images; } catch { imagesOK = false; } }
     renderLeft(); renderAttach();
   });
