@@ -122,7 +122,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const md = (s) => {
-    try { return DOMPurify.sanitize(marked.parse(String(s || ""), { gfm: true, breaks: true })); }
+    try { return DOMPurify.sanitize(marked.parse(String(s || "").replace(/~/g, "\\~"), { gfm: true, breaks: true })); }
     catch { return esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\n/g, "<br>"); }
   };
   const store = {
