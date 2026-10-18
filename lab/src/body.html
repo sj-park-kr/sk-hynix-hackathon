@@ -90,7 +90,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
     <div class="ai-note">
       <span id="aiRule">질문 1회 1,000자 이내 · 매 질문은 새 대화</span>
       <label><input type="checkbox" id="memory"> 이전 대화 기억(실전과 다름)</label>
-      <label title="끄면 Sonnet 5.5, 켜면 빠른 경량 모델"><input type="checkbox" id="lite"> 경량 모델</label>
+      <label title="끄면 Sonnet 5.5, 켜면 Haiku 5.5(추론 낮음) — 실전 구형 모델에 가깝게"><input type="checkbox" id="lite"> 경량 모델(Haiku·추론 낮음)</label>
       <label title="질문 1회에 첨부할 수 있는 파일 토큰 합계">첨부 한도 <select id="attachLimit"><option value="10000">1만 토큰</option><option value="20000">2만 토큰</option><option value="0">제한 없음</option></select></label>
       <span id="imgNote"></span>
     </div>
@@ -508,11 +508,11 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
       const { input, images } = await buildInput(text, files);
       const res = await sample(input, {
         signal: ctl.signal, cache: false, ...(images.length ? { images } : {}),
-        ...($("lite").checked ? { modelTier: "quick" } : { model: "claude-sonnet-5-5", modelTier: "default" }),
+        ...($("lite").checked ? { model: "claude-haiku-5-5", modelTier: "quick", effort: "low" } : { model: "claude-sonnet-5-5", modelTier: "default" }),
         onText: ({ text: t }) => { turn.answer = t; const el = key === KEY && $("ans-" + idx); if (el) el.innerHTML = md(t); },
       });
       turn.answer = res.text; turn.truncated = res.truncated;
-      turn.model = res.modelApplied === "claude-sonnet-5-5" ? "Sonnet 5.5" : { quick: "경량", default: "기본", complex: "고성능" }[res.modelTierApplied] || "";
+      turn.model = res.modelApplied === "claude-sonnet-5-5" ? "Sonnet 5.5" : res.modelApplied === "claude-haiku-5-5" ? "Haiku 5.5 · 추론 낮음" : { quick: "경량", default: "기본", complex: "고성능" }[res.modelTierApplied] || "";
     } catch (e) {
       if (e.text) turn.answer = e.text;
       else {
