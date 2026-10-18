@@ -307,7 +307,7 @@ input.short { width: 100%; border: 1px solid var(--line); background: var(--surf
   };
 
   /* ---------- 객관식 ---------- */
-  const norm = (s) => String(s ?? "").replace(/[\s,$]/g, "").toUpperCase();
+  const norm = (s) => String(s ?? "").replace(/[\s,$\-/]/g, "").toUpperCase();
   const isRight = (q, v) => (q.kind === "short" ? (q.accept || [q.answer]).map(norm).includes(norm(v)) && norm(v) !== "" : v === q.answer);
   function renderMCQ() {
     const m = state.mcq, done = m.submitted;
