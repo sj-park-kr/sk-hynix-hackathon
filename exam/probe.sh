@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# Cofa Probe 데모 시험 실행기 (Git Bash)
+# 사용: bash exam/probe.sh start [분=200] | agent | qa | grade
+set -euo pipefail
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+SCN="$HERE/scenarios/alarm-triage"
+RUNS="$HOME/probe-runs"
+SENTINEL=PROBE-HIDDEN-DO-NOT-COPY
+# 개인 훅·플러그인·스킬을 빼야 실무자·채점 세션이 오염되지 않음(기본값이면 SessionStart 훅이 주입됨)
+CLEAN=(--setting-sources project --disable-slash-commands)
+READ_TOOLS=(Read Grep Glob "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*)" "Bash(git status:*)")
+
+win() { cygpath -w "$1" 2>/dev/null || echo "$1"; }
+hm() { date -d "@$1" +%H:%M; }
+ai() { env -u CLAUDECODE claude "$@"; }  # Claude Code 안에서 실행해도 중첩 실행이 막히지 않게
+current() {
+  [ -f "$RUNS/current" ] || { echo "진행 중인 응시가 없습니다. 먼저: bash exam/probe.sh start" >&2; exit 1; }
+  cat "$RUNS/current"
+}
+
+start() {
+  local min=${1:-200} run now
+  run="$RUNS/alarm-triage-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$run/probe/agent"
+  cp -r "$SCN/workspace" "$run/work"
+  if grep -rq "$SENTINEL" "$run/work"; then
+    rm -rf "$run"; echo "숨김 파일이 응시 폴더에 섞여 중단합니다." >&2; exit 1
+  fi
+  git -C "$run/work" init -q -b main
+  git -C "$run/work" config core.autocrlf false  # 제공 데이터를 바이트 그대로 유지
+  git -C "$run/work" add -A
+  git -C "$run/work" -c user.name=probe -c user.email=probe@local commit -qm "과제 초기 상태"
+  now=$(date +%s)
+  echo "$now" > "$run/probe/start"
+  echo $((now + min * 60)) > "$run/probe/deadline"
+  echo "$run" > "$RUNS/current"
+  cat <<EOF
+응시 시작 $(hm "$now") · 마감 $(hm $((now + min * 60))) (${min}분)
+응시 폴더: $(win "$run/work")
+
+1) VS Code로 응시 폴더 열기:  code "$(win "$run/work")"
+2) Git Bash 터미널:          cd "$run/work" && claude --setting-sources project
+                             (개인 훅·스킬 없이 시험장처럼. 시험에서 개인 스킬이 허용되면 옵션을 빼도 됨)
+3) 터미널 분할(실무자 채팅):  bash "$HERE/probe.sh" agent
+4) 마감 후:                  bash "$HERE/probe.sh" qa
+EOF
+}
+
+agent() {
+  local run cont=()
+  run=$(current)
+  cd "$run/probe/agent"
+  # 실무자 창을 닫았다 다시 열어도 앞 대화를 이어감
+  ls "$HOME/.claude/projects/$(win "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"/*.jsonl >/dev/null 2>&1 && cont=(-c)
+  ai "${cont[@]}" --system-prompt "$(cat "$SCN/hidden/persona.md")" --tools "" "${CLEAN[@]}" -n 실무자
+}
+
+qa() {
+  local run p start deadline end
+  run=$(current); p="$run/probe"
+  [ -f "$p/end" ] || date +%s > "$p/end"
+  start=$(cat "$p/start"); deadline=$(cat "$p/deadline"); end=$(cat "$p/end")
+  node "$HERE/logs.mjs" "$p" "$run/work" "$p/agent"
+  {
+    echo "# 시간 기록"; echo
+    echo "- 시작 $(hm "$start") · 마감 $(hm "$deadline") · 종료 $(hm "$end") (응시 $(( (end - start) / 60 ))분)"
+    if [ "$end" -gt "$deadline" ]; then echo "- 마감 초과 $(( (end - deadline) / 60 ))분"; fi
+    echo "- 마감 이후 커밋:"
+    git -C "$run/work" log --since="$(date -d "@$deadline" '+%Y-%m-%d %H:%M:%S')" --format='  - %h %ad %s' --date=format:%H:%M
+    echo "- 커밋 안 된 변경: $(git -C "$run/work" status --porcelain | wc -l)개 파일"
+  } > "$p/time.md"
+  # 다시 실행해도 이미 쓴 답변(answers.md)을 덮어쓰지 않음
+  if [ ! -s "$p/qa.md" ]; then
+    echo "사후 질문을 만드는 중..."
+    (cd "$run" && ai -p --allowedTools "${READ_TOOLS[@]}" "${CLEAN[@]}" < "$HERE/grader/qa.md") > "$p/qa.md"
+    cp "$p/qa.md" "$p/answers.md"
+  fi
+  cat "$p/qa.md"
+  cat <<EOF
+
+AI 없이, 문항당 3분(총 15분) 안에 각 질문 아래에 답을 쓰세요: $(win "$p/answers.md")
+다 쓰면: bash "$HERE/probe.sh" grade
+EOF
+}
+
+# shortcut: 축별 합계는 채점 LLM이 rubric 배점으로 더함. 점수가 흔들리면 항목 판정을 JSON으로 받아 코드로 합산할 것
+grade() {
+  local run p
+  run=$(current); p="$run/probe"
+  [ -f "$p/qa.md" ] || { echo "먼저: bash exam/probe.sh qa" >&2; exit 1; }
+  echo "- 사후 Q&A 작성 약 $(( ($(stat -c %Y "$p/answers.md") - $(stat -c %Y "$p/qa.md")) / 60 ))분" >> "$p/time.md"
+  echo "채점 중(빌드·테스트 실행 포함, 몇 분 걸림)..."
+  { cat "$HERE/grader/grade.md"; printf '\n채점 기준·정답 키 폴더: %s\n' "$(win "$SCN/hidden")"; } |
+    (cd "$run" && ai -p --add-dir "$(win "$SCN/hidden")" \
+      --allowedTools "${READ_TOOLS[@]}" "Bash(npm install:*)" "Bash(npm run:*)" "Bash(npm test:*)" "Bash(node:*)" \
+      "${CLEAN[@]}") > "$p/report.md"
+  echo "채점 리포트: $(win "$p/report.md")"
+}
+
+case "${1:-}" in
+  start) start "${2:-200}" ;;
+  agent | qa | grade) "$1" ;;
+  *) echo "사용: bash exam/probe.sh start [분=200] | agent | qa | grade" >&2; exit 1 ;;
+esac

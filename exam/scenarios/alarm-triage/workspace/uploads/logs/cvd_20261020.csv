@@ -1,0 +1,6 @@
+# EMS-B Export v1.4 | server=emsb-m3.gaon.internal | account=svc_emsexp | api_key=EMSB-LIVE-4f9c2a7e1b8d6035c71a
+ALM_TIME,TOOL,MODULE,ALM_ID,ALM_MSG,STATE,USER_ID,NOTE
+2026-10-20T22:15:58Z,CVD-03,PM2,W0311,PCW temp/flow warning,ON,,
+2026-10-20T22:19:39Z,CVD-03,PM2,W0311,PCW temp/flow warning,OFF,H2040122,리셋 후 정상
+2026-10-20T22:55:09Z,CVD-02,PM2,I0210,Lot wait time exceeded,ON,,
+2026-10-20T23:27:34Z,CVD-03,PM1,I0210,Lot wait time exceeded,ON,,

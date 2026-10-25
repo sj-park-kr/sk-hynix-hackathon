@@ -1,0 +1,63 @@
+# EMS-B Export v1.4 | server=emsb-m3.gaon.internal | account=svc_emsexp | api_key=EMSB-LIVE-4f9c2a7e1b8d6035c71a
+ALM_TIME,TOOL,MODULE,ALM_ID,ALM_MSG,STATE,USER_ID,NOTE
+2026-10-23T00:07:40Z,CVD-03,PM1,W0701,Door interlock,ON,,
+2026-10-23T00:12:02Z,CVD-03,PM1,W0701,Door interlock,OFF,H2038061,PM 테스트
+2026-10-23T00:30:12Z,CVD-03,PM1,W0701,Door interlock,ON,,
+2026-10-23T00:34:28Z,CVD-03,PM1,W0701,Door interlock,OFF,H2040122,PM 테스트
+2026-10-23T01:12:55Z,CVD-03,PM1,W0701,Door interlock,ON,,
+2026-10-23T01:15:01Z,CVD-03,PM1,W0701,Door interlock,OFF,H2031457,PM 테스트
+2026-10-23T01:24:48Z,CVD-01,PM2,I0105,Recipe parameter changed,ON,H2018874,
+2026-10-23T01:50:42Z,CVD-02,PM2,I0210,Lot wait time exceeded,ON,,
+2026-10-23T02:17:56Z,CVD-02,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T02:30:48Z,CVD-02,PM2,W0502,Exhaust pressure warning,OFF,H2027716,리셋 후 정상
+2026-10-23T02:41:00Z,CVD-02,PM1,W0502,Exhaust pressure warning,ON,,
+2026-10-23T02:54:50Z,CVD-02,PM1,W0502,Exhaust pressure warning,OFF,H2027716,확인
+2026-10-23T04:09:31Z,CVD-01,PM1,I0105,Recipe parameter changed,ON,H2045310,
+2026-10-23T04:18:52Z,CVD-02,PM1,W0311,PCW temp/flow warning,ON,,
+2026-10-23T04:27:38Z,CVD-03,PM2,I0210,Lot wait time exceeded,ON,,
+2026-10-23T04:32:08Z,CVD-02,PM1,W0311,PCW temp/flow warning,OFF,H2045310,리셋 후 정상
+2026-10-23T04:58:55Z,CVD-01,PM2,E1810,Heater temperature deviation,ON,,
+2026-10-23T05:33:05Z,CVD-01,PM2,I0210,Lot wait time exceeded,ON,,
+2026-10-23T05:50:28Z,CVD-03,PM1,W0502,Exhaust pressure warning,ON,,
+2026-10-23T06:08:01Z,CVD-01,PM2,I0210,Lot wait time exceeded,ON,,
+2026-10-23T06:13:43Z,CVD-03,PM1,W0502,Exhaust pressure warning,OFF,H2045310,
+2026-10-23T06:52:38Z,CVD-03,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T07:13:00Z,CVD-03,PM2,W0502,Exhaust pressure warning,OFF,H2045310,
+2026-10-23T08:30:40Z,CVD-03,PM1,I0210,Lot wait time exceeded,ON,,
+2026-10-23T08:33:14Z,CVD-01,PM2,I0105,Recipe parameter changed,ON,H2040122,
+2026-10-23T08:37:38Z,CVD-03,PM1,I0105,Recipe parameter changed,ON,H2027716,
+2026-10-23T08:48:51Z,CVD-02,PM2,E3990,Alarm 3990 (no description),ON,,
+2026-10-23T08:50:59Z,CVD-02,PM2,E3990,Alarm 3990 (no description),OFF,H2031457,
+2026-10-23T09:30:59Z,CVD-03,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T09:46:05Z,CVD-03,PM2,W0502,Exhaust pressure warning,OFF,H2040122,
+2026-10-23T10:30:20Z,CVD-02,PM2,E2210,MFC flow deviation,ON,,
+2026-10-23T10:37:43Z,CVD-03,PM1,I0105,Recipe parameter changed,ON,H2019033,
+2026-10-23T10:51:11Z,CVD-02,PM2,E2210,MFC flow deviation,OFF,H2031457,확인
+2026-10-23T11:04:11Z,CVD-02,PM1,I0210,Lot wait time exceeded,ON,,
+2026-10-23T12:37:55Z,CVD-02,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T12:47:23Z,CVD-02,PM2,W0502,Exhaust pressure warning,OFF,H2040122,자동 해제
+2026-10-23T13:08:17Z,CVD-03,PM2,E1810,Heater temperature deviation,ON,,
+2026-10-23T13:12:00Z,CVD-03,PM2,E1810,Heater temperature deviation,OFF,H2018874,자동 해제
+2026-10-23T13:19:52Z,CVD-03,PM2,W0620,Consumable lifetime reached,ON,,
+2026-10-23T13:23:50Z,CVD-02,PM1,I0210,Lot wait time exceeded,ON,,
+2026-10-23T13:29:09Z,CVD-03,PM2,W0620,Consumable lifetime reached,OFF,H2018874,리셋 후 정상
+2026-10-23T14:12:55Z,CVD-01,PM1,W0311,PCW temp/flow warning,ON,,
+2026-10-23T14:20:32Z,CVD-01,PM1,W0311,PCW temp/flow warning,OFF,H2040122,자동 해제
+2026-10-23T14:30:27Z,CVD-01,PM2,E2107,He backside pressure deviation,ON,,
+2026-10-23T14:57:07Z,CVD-01,PM2,W0620,Consumable lifetime reached,ON,,
+2026-10-23T15:21:28Z,CVD-01,PM2,W0620,Consumable lifetime reached,OFF,H2018874,
+2026-10-23T16:16:19Z,CVD-03,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T16:37:06Z,CVD-03,PM2,W0502,Exhaust pressure warning,OFF,H2019033,자동 해제
+2026-10-23T17:05:45Z,CVD-03,PM1,W0311,PCW temp/flow warning,ON,,
+2026-10-23T17:23:54Z,CVD-03,PM1,W0311,PCW temp/flow warning,OFF,H2018874,
+2026-10-23T17:44:27Z,CVD-02,PM2,I0105,Recipe parameter changed,ON,H2040122,
+2026-10-23T18:05:26Z,CVD-01,PM1,W0311,PCW temp/flow warning,ON,,
+2026-10-23T18:13:34Z,CVD-01,PM1,W0311,PCW temp/flow warning,OFF,H2027716,자동 해제
+2026-10-23T18:41:18Z,CVD-03,PM2,W0502,Exhaust pressure warning,ON,,
+2026-10-23T19:06:09Z,CVD-01,PM1,W0620,Consumable lifetime reached,ON,,
+2026-10-23T19:21:10Z,CVD-01,PM1,W0620,Consumable lifetime reached,OFF,H2031457,확인
+2026-10-23T20:27:18Z,CVD-02,PM2,W0311,PCW temp/flow warning,ON,,
+2026-10-23T21:04:14Z,CVD-01,PM1,I0210,Lot wait time exceeded,ON,,
+2026-10-23T21:06:25Z,CVD-02,PM2,W0311,PCW temp/flow warning,ON,,
+2026-10-23T21:09:06Z,CVD-02,PM2,W0311,PCW temp/flow warning,OFF,H2019033,자동 해제
+2026-10-23T21:48:17Z,CVD-01,PM1,E2210,MFC flow deviation,ON,,
