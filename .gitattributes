@@ -1,2 +1,4 @@
 # 시나리오 데이터는 바이트 그대로 보관(Windows autocrlf가 줄바꿈을 바꾸지 않게)
 exam/scenarios/** -text
+# bash는 CRLF 스크립트를 실행하지 못함
+*.sh text eol=lf
