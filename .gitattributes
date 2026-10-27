@@ -2,3 +2,5 @@
 exam/scenarios/** -text
 # bash는 CRLF 스크립트를 실행하지 못함
 *.sh text eol=lf
+# PDF에 NUL 바이트가 없어 텍스트로 오인됨 → 줄바꿈 변환으로 깨지지 않게
+*.pdf binary
