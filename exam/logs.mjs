@@ -1,15 +1,11 @@
 #!/usr/bin/env node
 // 대화 기록(jsonl) → 응시자 프롬프트, 실무자 대화, 토큰 요약. 숫자는 LLM이 아니라 여기서 센다.
-// 응시자는 Codex(~/.codex/sessions), 실무자는 Claude Code(~/.claude/projects) 기록을 읽는다.
+// 응시자·실무자 모두 Codex(~/.codex/sessions) 기록을 읽는다.
 // 사용: node logs.mjs <출력 폴더> <응시 폴더> <실무자 폴더>   |   node logs.mjs --self-test
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-
-// Claude Code는 작업 폴더 경로의 영숫자 외 문자를 '-'로 바꾼 이름으로 기록을 저장한다
-const projectDir = (dir) =>
-  path.join(os.homedir(), '.claude', 'projects', path.resolve(dir).replace(/[^A-Za-z0-9]/g, '-'));
 
 const jsonlFiles = (dir) =>
   fs.existsSync(dir)
@@ -21,51 +17,7 @@ const parse = (file) =>
     try { return l ? [JSON.parse(l)] : []; } catch { return []; }
   });
 
-const isNoise = (t) => /^<(local-command-(stdout|caveat)|system-reminder)/.test(t);
-
-function userText(o) {
-  if (o.type !== 'user' || o.isMeta || o.isSidechain) return '';
-  const c = o.message?.content;
-  const t = typeof c === 'string' ? c
-    : Array.isArray(c) ? c.filter((b) => b.type === 'text').map((b) => b.text).join('\n') : '';
-  return isNoise(t.trim()) ? '' : t.trim();
-}
-
 const blank = () => ({ prompts: 0, promptChars: 0, responses: 0, input: 0, cacheWrite: 0, cacheRead: 0, output: 0 });
-
-export function summarize(dir) {
-  const seen = new Set();
-  const usage = { main: blank(), sub: blank() };
-  const dialogue = [];
-  for (const file of jsonlFiles(dir)) {
-    const sub = file.split(path.sep).includes('subagents');
-    for (const o of parse(file)) {
-      if (o.type === 'assistant' && o.message?.id) {
-        const m = o.message;
-        const text = (m.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
-        if (!sub && text) dialogue.push({ ts: o.timestamp, who: 'AI', text });
-        // 한 응답이 블록마다 여러 줄로 기록되고 줄마다 같은 usage가 붙으므로 id당 한 번만 센다
-        if (seen.has(m.id)) continue;
-        seen.add(m.id);
-        const u = usage[sub ? 'sub' : 'main'];
-        const g = m.usage || {};
-        u.responses++;
-        u.input += g.input_tokens || 0;
-        u.cacheWrite += g.cache_creation_input_tokens || 0;
-        u.cacheRead += g.cache_read_input_tokens || 0;
-        u.output += g.output_tokens || 0;
-      } else if (!sub) {
-        const text = userText(o);
-        if (!text) continue;
-        dialogue.push({ ts: o.timestamp, who: '응시자', text });
-        usage.main.prompts++;
-        usage.main.promptChars += text.length;
-      }
-    }
-  }
-  dialogue.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-  return { usage, dialogue };
-}
 
 // Codex는 날짜별 폴더에 모든 세션을 쌓으므로 session_meta의 작업 폴더로 응시 세션만 고른다
 const codexHome = () => process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
@@ -129,7 +81,7 @@ function usageTable(work, agent) {
 
 function main([out, workDir, agentDir]) {
   const work = summarizeCodex(workDir);
-  const agent = summarize(projectDir(agentDir));
+  const agent = summarizeCodex(agentDir);
   const banned = work.models.filter((m) => BANNED_MODEL.test(m));
   const modelLine = `응시자 Codex 모델: ${work.models.join(', ') || '(기록 없음)'}`
     + (banned.length ? ` — **금지 모델 사용: ${banned.join(', ')}**` : '');
@@ -145,29 +97,6 @@ function main([out, workDir, agentDir]) {
 function selfTest() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'probe-logs-'));
   const line = (o) => JSON.stringify(o);
-  const ai = (id, block, usage) => ({ type: 'assistant', timestamp: '2026-10-31T01:01:00Z', message: { id, content: [block], usage } });
-  fs.writeFileSync(path.join(dir, 'main.jsonl'), [
-    line({ type: 'user', timestamp: '2026-10-31T01:00:00Z', message: { content: '첫 질문' } }),
-    line({ type: 'user', isMeta: true, message: { content: '메타' } }),
-    line({ type: 'user', message: { content: [{ type: 'tool_result', content: 'x' }] } }),
-    line(ai('m1', { type: 'text', text: '답1' }, { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100 })),
-    line(ai('m1', { type: 'tool_use', name: 'Bash' }, { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100 })),
-    line({ type: 'user', message: { content: '<local-command-stdout>x</local-command-stdout>' } }),
-    '{깨진 줄',
-  ].join('\n'));
-  fs.mkdirSync(path.join(dir, 's1', 'subagents'), { recursive: true });
-  fs.writeFileSync(path.join(dir, 's1', 'subagents', 'agent-1.jsonl'), [
-    line({ type: 'user', message: { content: '서브 지시' } }),
-    line(ai('s1', { type: 'text', text: '서브 답' }, { input_tokens: 1, output_tokens: 2 })),
-  ].join('\n'));
-  const { usage, dialogue } = summarize(dir);
-  assert.deepEqual(dialogue.map((d) => `${d.who}:${d.text}`), ['응시자:첫 질문', 'AI:답1']);
-  assert.deepEqual(usage.main, { prompts: 1, promptChars: 4, responses: 1, input: 10, cacheWrite: 0, cacheRead: 100, output: 5 });
-  assert.equal(usage.sub.responses, 1);
-  assert.equal(usage.sub.output, 2);
-  assert.equal(usage.sub.prompts, 0);
-  assert.equal(projectDir('C:\\Users\\a\\probe-runs\\x-1\\work').endsWith('C--Users-a-probe-runs-x-1-work'), process.platform === 'win32');
-
   // Codex: 다른 폴더 세션은 무시, 서브에이전트는 토큰만, 모델 기록
   const cx = path.join(dir, 'codex', '2026', '10', '31');
   const work = path.join(dir, 'work');

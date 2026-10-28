@@ -2,10 +2,11 @@
 # Cofa Probe 데모 시험 실행기 (Git Bash)
 # 사용: bash exam/probe.sh [분=200]   (시작→응시→Q&A→채점 한 번에)
 #       단계별: start [분] | agent | qa | grade
+#       시나리오 고르기: SCENARIO=<exam/scenarios 아래 폴더 이름> bash exam/probe.sh  (기본 alarm-triage)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-SCN="$HERE/scenarios/alarm-triage"
+SCENARIO=${SCENARIO:-alarm-triage}
 RUNS="$HOME/probe-runs"
 SENTINEL=PROBE-HIDDEN-DO-NOT-COPY
 # 개인 훅·플러그인·스킬을 빼야 실무자·채점 세션이 오염되지 않음(기본값이면 SessionStart 훅이 주입됨)
@@ -15,19 +16,24 @@ READ_TOOLS=(Read Grep Glob "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*
 win() { cygpath -w "$1" 2>/dev/null || echo "$1"; }
 hm() { date -d "@$1" +%H:%M; }
 ai() { env -u CLAUDECODE claude "$@"; }  # Claude Code 안에서 실행해도 중첩 실행이 막히지 않게
-# 응시자는 Codex. gpt-6-astra는 시험에서 금지라 다른 모델로 고정하고, 세션 중 /model로 바꿨는지는 logs.mjs가 기록에서 잡는다
+# 응시자·실무자는 Codex. gpt-6-astra는 시험에서 금지라 다른 모델로 고정하고, 세션 중 /model로 바꿨는지는 logs.mjs가 기록에서 잡는다
 CANDIDATE_MODEL=gpt-6.1-sol
 candidate() { codex -m "$CANDIDATE_MODEL" "$@"; }
 current() {
   [ -f "$RUNS/current" ] || { echo "진행 중인 응시가 없습니다. 먼저: bash exam/probe.sh start" >&2; exit 1; }
   cat "$RUNS/current"
 }
+# 응시 중인 시나리오 폴더 (start가 응시 폴더에 이름을 남김. 기록이 없는 예전 응시는 alarm-triage)
+scn() { echo "$HERE/scenarios/$(cat "$1/probe/scenario" 2>/dev/null || echo alarm-triage)"; }
 
 start() {
   local min=${1:-200} run now
-  run="$RUNS/alarm-triage-$(date +%Y%m%d-%H%M%S)"
+  [ -d "$HERE/scenarios/$SCENARIO/workspace" ] ||
+    { echo "시나리오가 없습니다: $SCENARIO (있는 것: $(ls "$HERE/scenarios" | tr '\n' ' '))" >&2; exit 1; }
+  run="$RUNS/$SCENARIO-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$run/probe/agent"
-  cp -r "$SCN/workspace" "$run/work"
+  echo "$SCENARIO" > "$run/probe/scenario"
+  cp -r "$HERE/scenarios/$SCENARIO/workspace" "$run/work"
   if grep -rq "$SENTINEL" "$run/work"; then
     rm -rf "$run"; echo "숨김 파일이 응시 폴더에 섞여 중단합니다." >&2; exit 1
   fi
@@ -51,13 +57,15 @@ start() {
 EOF
 }
 
+# 실무자도 Codex. persona로 기본 지시를 바꾸고, 셸을 꺼서 숨김 정답 파일을 못 읽게 함
 agent() {
-  local run cont=()
-  run=$(current)
+  local run args SCN
+  run=$(current); SCN=$(scn "$run")
   cd "$run/probe/agent"
-  # 실무자 창을 닫았다 다시 열어도 앞 대화를 이어감
-  ls "$HOME/.claude/projects/$(win "$PWD" | sed 's/[^A-Za-z0-9]/-/g')"/*.jsonl >/dev/null 2>&1 && cont=(-c)
-  ai "${cont[@]}" --system-prompt "$(cat "$SCN/hidden/persona.md")" --tools "" "${CLEAN[@]}" -n 실무자
+  args=(-m "$CANDIDATE_MODEL" -s read-only --disable shell_tool --disable unified_exec
+    -c "model_instructions_file='$(cygpath -m "$SCN/hidden/persona.md")'")
+  # 실무자 창을 닫았다 다시 열어도 앞 대화를 이어감(resume --last는 현재 폴더 세션만 고름)
+  if [ -f .started ]; then codex resume --last "${args[@]}"; else touch .started; codex "${args[@]}"; fi
 }
 
 # 기록 수집·시간 기록 (채점 전 필수)
@@ -95,8 +103,8 @@ EOF
 
 # shortcut: 축별 합계는 채점 LLM이 rubric 배점으로 더함. 점수가 흔들리면 항목 판정을 JSON으로 받아 코드로 합산할 것
 grade() {
-  local run p
-  run=$(current); p="$run/probe"
+  local run p SCN
+  run=$(current); p="$run/probe"; SCN=$(scn "$run")
   [ -f "$p/time.md" ] || finish
   echo "채점 중(빌드·테스트 실행 포함, 몇 분 걸림)..."
   { cat "$HERE/grader/grade.md"; printf '\n채점 기준·정답 키 폴더: %s\n' "$(win "$SCN/hidden")"; } |
