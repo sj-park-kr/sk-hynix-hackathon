@@ -39,9 +39,10 @@ bash exam/probe.sh start        # 저장소 밖 ~/probe-runs/에 응시 폴더 �
 bash exam/probe.sh agent        # 실무자 채팅 (VS Code 터미널을 분할해서 실행)
 bash exam/probe.sh qa           # 마감 후: 기록 수집 + 사후 질문 5개 → answers.md에 AI 없이 답하기
 bash exam/probe.sh grade        # 3축 채점 리포트 (probe/report.md)
-SCENARIO=<폴더 이름> bash exam/probe.sh   # 다른 시나리오로 응시 (exam/scenarios/ 아래, 기본 alarm-triage)
+SCENARIO=<폴더 이름> bash exam/probe.sh   # 이번만 다른 시나리오로 응시 (exam/scenarios/ 아래)
 ```
 
+- 시나리오는 저장소 루트 `.env`의 `SCENARIO=`로 고릅니다(`.env.example` 참고). 비우면 `alarm-triage`, 명령줄 `SCENARIO=`가 우선
 - 한 화면에서 연습합니다: VS Code 하나에 에디터, 왼쪽 터미널(응시자 `claude`), 오른쪽 터미널(`agent`)
 - 응시자 AI 대화, 실무자 대화, 토큰 사용량은 Claude Code 기록에서 `exam/logs.mjs`가 뽑습니다(`node exam/logs.mjs --self-test`)
 - 응시 폴더가 저장소 밖에 있어서 응시자 AI는 hidden 파일을 볼 수 없고, 실무자는 도구가 막혀 파일을 볼 수 없습니다

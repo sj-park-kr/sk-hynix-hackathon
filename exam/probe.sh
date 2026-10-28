@@ -2,10 +2,15 @@
 # Cofa Probe 데모 시험 실행기 (Git Bash)
 # 사용: bash exam/probe.sh [분=200]   (시작→응시→Q&A→채점 한 번에)
 #       단계별: start [분] | agent | qa | grade
-#       시나리오 고르기: SCENARIO=<exam/scenarios 아래 폴더 이름> bash exam/probe.sh  (기본 alarm-triage)
+#       시나리오 고르기: 저장소 루트 .env에 SCENARIO=<exam/scenarios 아래 폴더 이름>
+#                        (명령줄 SCENARIO=... 가 우선, 둘 다 없으면 alarm-triage)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
+# source 대신 한 줄만 읽음: Windows에서 저장한 .env의 CR·따옴표가 값에 섞이지 않게
+if [ -z "${SCENARIO:-}" ] && [ -f "$HERE/../.env" ]; then
+  SCENARIO=$(sed -n 's/^SCENARIO=//p' "$HERE/../.env" | tr -d '\r"' | tail -n 1)
+fi
 SCENARIO=${SCENARIO:-alarm-triage}
 RUNS="$HOME/probe-runs"
 SENTINEL=PROBE-HIDDEN-DO-NOT-COPY
