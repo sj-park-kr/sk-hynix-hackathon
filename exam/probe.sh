@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cofa Probe 데모 시험 실행기 (Git Bash)
-# 사용: bash exam/probe.sh start [분=200] | agent | qa | grade
+# 사용: bash exam/probe.sh [분=200]   (시작→응시→Q&A→채점 한 번에)
+#       단계별: start [분] | agent | qa | grade
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -14,6 +15,9 @@ READ_TOOLS=(Read Grep Glob "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*
 win() { cygpath -w "$1" 2>/dev/null || echo "$1"; }
 hm() { date -d "@$1" +%H:%M; }
 ai() { env -u CLAUDECODE claude "$@"; }  # Claude Code 안에서 실행해도 중첩 실행이 막히지 않게
+# 응시자는 Codex. gpt-6-astra는 시험에서 금지라 다른 모델로 고정하고, 세션 중 /model로 바꿨는지는 logs.mjs가 기록에서 잡는다
+CANDIDATE_MODEL=gpt-6.1-sol
+candidate() { codex -m "$CANDIDATE_MODEL" "$@"; }
 current() {
   [ -f "$RUNS/current" ] || { echo "진행 중인 응시가 없습니다. 먼저: bash exam/probe.sh start" >&2; exit 1; }
   cat "$RUNS/current"
@@ -40,8 +44,8 @@ start() {
 응시 폴더: $(win "$run/work")
 
 1) VS Code로 응시 폴더 열기:  code "$(win "$run/work")"
-2) Git Bash 터미널:          cd "$run/work" && claude --setting-sources project
-                             (개인 훅·스킬 없이 시험장처럼. 시험에서 개인 스킬이 허용되면 옵션을 빼도 됨)
+2) Git Bash 터미널:          cd "$run/work" && codex -m $CANDIDATE_MODEL
+                             (gpt-6-astra 사용 금지. /model로 바꾸면 채점 기록에 표시됨)
 3) 터미널 분할(실무자 채팅):  bash "$HERE/probe.sh" agent
 4) 마감 후:                  bash "$HERE/probe.sh" qa
 EOF
@@ -56,7 +60,8 @@ agent() {
   ai "${cont[@]}" --system-prompt "$(cat "$SCN/hidden/persona.md")" --tools "" "${CLEAN[@]}" -n 실무자
 }
 
-qa() {
+# 기록 수집·시간 기록 (채점 전 필수)
+finish() {
   local run p start deadline end
   run=$(current); p="$run/probe"
   [ -f "$p/end" ] || date +%s > "$p/end"
@@ -66,10 +71,14 @@ qa() {
     echo "# 시간 기록"; echo
     echo "- 시작 $(hm "$start") · 마감 $(hm "$deadline") · 종료 $(hm "$end") (응시 $(( (end - start) / 60 ))분)"
     if [ "$end" -gt "$deadline" ]; then echo "- 마감 초과 $(( (end - deadline) / 60 ))분"; fi
-    echo "- 마감 이후 커밋:"
-    git -C "$run/work" log --since="$(date -d "@$deadline" '+%Y-%m-%d %H:%M:%S')" --format='  - %h %ad %s' --date=format:%H:%M
-    echo "- 커밋 안 된 변경: $(git -C "$run/work" status --porcelain | wc -l)개 파일"
   } > "$p/time.md"
+}
+
+# (선택) 사후 질문. 기본 흐름에서는 쓰지 않음
+qa() {
+  local run p
+  run=$(current); p="$run/probe"
+  finish
   # 다시 실행해도 이미 쓴 답변(answers.md)을 덮어쓰지 않음
   if [ ! -s "$p/qa.md" ]; then
     echo "사후 질문을 만드는 중..."
@@ -88,8 +97,7 @@ EOF
 grade() {
   local run p
   run=$(current); p="$run/probe"
-  [ -f "$p/qa.md" ] || { echo "먼저: bash exam/probe.sh qa" >&2; exit 1; }
-  echo "- 사후 Q&A 작성 약 $(( ($(stat -c %Y "$p/answers.md") - $(stat -c %Y "$p/qa.md")) / 60 ))분" >> "$p/time.md"
+  [ -f "$p/time.md" ] || finish
   echo "채점 중(빌드·테스트 실행 포함, 몇 분 걸림)..."
   { cat "$HERE/grader/grade.md"; printf '\n채점 기준·정답 키 폴더: %s\n' "$(win "$SCN/hidden")"; } |
     (cd "$run" && ai -p --add-dir "$(win "$SCN/hidden")" \
@@ -98,8 +106,25 @@ grade() {
   echo "채점 리포트: $(win "$p/report.md")"
 }
 
+# 한 번에: 응시 시작 → 실무자 창 → 응시자 codex → (종료 후) 기록 수집 → 채점
+run() {
+  local run
+  start "${1:-200}" > /dev/null
+  run=$(current)
+  echo "응시 시작. 마감 $(hm "$(cat "$run/probe/deadline")"). 응시 폴더: $(win "$run/work")"
+  command -v code > /dev/null && code "$(win "$run/work")"
+  # 실무자 채팅은 새 창에서 (끄면 같은 대화를 이어서 다시 열 수 있음)
+  mintty -t 실무자 -o FontHeight=14 -o Columns=110 -o Rows=40 -e bash "$HERE/probe.sh" agent &
+  echo "이 창에서 응시자 codex($CANDIDATE_MODEL)를 시작합니다. gpt-6-astra는 쓰지 마세요. 끝내려면 /exit."
+  (cd "$run/work" && candidate) || true
+  read -r -p "응시를 끝내고 채점합니다. [Enter] " _
+  finish
+  grade
+}
+
 case "${1:-}" in
+  "" | [0-9]*) run "${1:-200}" ;;
   start) start "${2:-200}" ;;
   agent | qa | grade) "$1" ;;
-  *) echo "사용: bash exam/probe.sh start [분=200] | agent | qa | grade" >&2; exit 1 ;;
+  *) echo "사용: bash exam/probe.sh [분=200] | start | agent | qa | grade" >&2; exit 1 ;;
 esac
